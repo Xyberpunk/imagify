@@ -4,11 +4,12 @@ import React, { useEffect, useMemo, useState } from "react";
 const BRAND = "Imagify";
 
 // API endpoints
-const OPENVERSE_ENDPOINT = "https://api.openverse.engineering/v1/images";
+// Now Openverse goes through our Vercel API proxy at /api/openverse
+const OPENVERSE_PROXY = "/api/openverse";
 const WMC_SEARCH =
   "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrwhat=text&prop=imageinfo&iiprop=url|size|mime|extmetadata&origin=*&format=json&gsrlimit=50&iiurlwidth=1200&gsrsearch=";
 
-// Utility – simple tokenization (may be useful later)
+// Utility – simple tokenization
 function tokenize(str: string) {
   return (str || "")
     .toLowerCase()
@@ -17,7 +18,7 @@ function tokenize(str: string) {
     .filter(Boolean);
 }
 
-// Orientation tag helper
+// Orientation tag
 function orientation(width?: number | null, height?: number | null) {
   if (!width || !height) return "unknown";
   if (width > height) return "landscape";
@@ -26,59 +27,14 @@ function orientation(width?: number | null, height?: number | null) {
 }
 
 /* ===========================
-   LANDMARK BOOST (Option 1 – strong)
-   Works for ALL cities by boosting:
-   - tower, bridge, palace, fort, castle, temple, mosque, church,
-     cathedral, monument, statue, skyline, gate, plaza, square, harbour, harbor
-   - plus strong boost if title contains the city name itself
-=========================== */
-function landmarkBoost(title: string, city: string): number {
-  const t = title.toLowerCase();
-  const c = city.toLowerCase().trim();
-  let score = 0;
-
-  if (c && t.includes(c)) score += 8; // strong city-name boost
-
-  const keywords = [
-    "tower",
-    "bridge",
-    "palace",
-    "fort",
-    "castle",
-    "temple",
-    "mosque",
-    "church",
-    "cathedral",
-    "monument",
-    "statue",
-    "skyline",
-    "gate",
-    "plaza",
-    "square",
-    "harbour",
-    "harbor",
-    "bay",
-    "opera house",
-    "museum",
-  ];
-
-  for (const k of keywords) {
-    if (t.includes(k)) score += 3; // strong boost for each landmark noun
-  }
-
-  return score;
-}
-
-/* ===========================
-    FETCH: OPENVERSE
+    FETCH: OPENVERSE via /api/openverse
 =========================== */
 async function fetchOpenverse(query: string) {
-  const url = `${OPENVERSE_ENDPOINT}/?q=${encodeURIComponent(
-    query
-  )}&page_size=80`;
+  // call our own API route: /api/openverse?q=...
+  const url = `${OPENVERSE_PROXY}?q=${encodeURIComponent(query)}&page_size=40`;
 
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Openverse error ${res.status}`);
+  if (!res.ok) throw new Error(`Openverse proxy error ${res.status}`);
 
   const json = await res.json();
   const now = new Date().toISOString();
@@ -174,7 +130,6 @@ function ImageCard({ item }: { item: any }) {
           src={item.thumbnail_url}
           alt={item.title}
           className="w-full h-full object-cover group-hover:scale-[1.03] transition"
-          loading="lazy"
         />
       </div>
       <div className="p-3 space-y-2">
@@ -210,13 +165,6 @@ export default function App() {
 
   const query = useDebounce(city.trim(), 500);
 
-  // dark mode
-  useEffect(() => {
-    const el = document.documentElement;
-    dark ? el.classList.add("dark") : el.classList.remove("dark");
-  }, [dark]);
-
-  // main fetch effect
   useEffect(() => {
     if (!query) {
       setResults([]);
@@ -230,38 +178,24 @@ export default function App() {
 
     (async () => {
       try {
-        // Call both; if one fails, continue with the other.
-        const [ovRes, wmRes] = await Promise.allSettled([
-          fetchOpenverse(query),
-          fetchWikimedia(query),
+        const [ov, wm] = await Promise.all([
+          fetchOpenverse(query).catch((err) => {
+            console.error("Openverse proxy error:", err);
+            return [];
+          }),
+          fetchWikimedia(query).catch((err) => {
+            console.error("Wikimedia error:", err);
+            return [];
+          }),
         ]);
 
-        const ov = ovRes.status === "fulfilled" ? ovRes.value : [];
-        const wm = wmRes.status === "fulfilled" ? wmRes.value : [];
+        // Merge → Openverse ALWAYS first
+        const merged = [...ov, ...wm].slice(0, limit);
 
-        // Merge (Openverse then Wikimedia)
-        const mergedRaw = [...ov, ...wm];
-
-        // Add landmark score & original index to keep stable order otherwise
-        const withScores = mergedRaw.map((item, idx) => ({
-          ...item,
-          _idx: idx,
-          _landmark: landmarkBoost(item.title || "", city),
-        }));
-
-        // Strong landmark-first sort (option 1)
-        withScores.sort((a, b) => {
-          const lb = b._landmark - a._landmark;
-          if (lb !== 0) return lb;
-          return a._idx - b._idx; // keep original order when tie
-        });
-
-        const final = withScores.slice(0, limit).map(({ _idx, _landmark, ...rest }) => rest);
-
-        if (!cancelled) setResults(final);
+        if (!cancelled) setResults(merged);
       } catch (e: any) {
         console.error(e);
-        if (!cancelled) setError(e?.message || "Unknown error");
+        if (!cancelled) setError(e.message || "Error");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -270,7 +204,13 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [query, limit, city]);
+  }, [query, limit]);
+
+  /* Dark mode toggle */
+  useEffect(() => {
+    const el = document.documentElement;
+    dark ? el.classList.add("dark") : el.classList.remove("dark");
+  }, [dark]);
 
   return (
     <div className="min-h-screen">
@@ -296,7 +236,7 @@ export default function App() {
           <div className="md:col-span-6">
             <label className="block text-sm mb-1">City</label>
             <input
-              className="w-full rounded-2xl border px-3 py-2 bg-white/70 dark:bg-slate-800/70 shadow focus:ring-2 focus:ring-indigo-400 outline-none"
+              className="w-full rounded-2xl border px-3 py-2 bg-white/70 dark:bg-slate-800/70 shadow focus:ring-2"
               placeholder="e.g., Paris, Mumbai, Tokyo"
               value={city}
               onChange={(e) => setCity(e.target.value)}
@@ -306,9 +246,9 @@ export default function App() {
           <div className="md:col-span-3">
             <label className="block text-sm mb-1">Top results</label>
             <select
-              className="w-full rounded-2xl border px-3 py-2 bg-white/70 dark:bg-slate-800/70 shadow focus:ring-2 focus:ring-indigo-400 outline-none"
+              className="w-full rounded-2xl border px-3 py-2 bg-white/70 dark:bg-slate-800/70 shadow"
               value={limit}
-              onChange={(e) => setLimit(parseInt(e.target.value, 10))}
+              onChange={(e) => setLimit(parseInt(e.target.value))}
             >
               <option value={12}>Top 12</option>
               <option value={24}>Top 24</option>
@@ -317,14 +257,13 @@ export default function App() {
           </div>
         </section>
 
-        {/* STATUS / ERRORS */}
+        {/* RESULTS */}
         {error && (
           <div className="p-3 bg-red-100 dark:bg-red-900/40 rounded-xl text-red-700 dark:text-red-200 text-sm">
             {error}
           </div>
         )}
 
-        {/* RESULTS */}
         {loading ? (
           <div className="py-16 text-center text-slate-500">Searching…</div>
         ) : results.length === 0 ? (
