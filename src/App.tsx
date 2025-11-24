@@ -1,22 +1,16 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 // Brand
 const BRAND = "Imagify";
 
 // API endpoints
-// Now Openverse goes through our Vercel API proxy at /api/openverse
-const OPENVERSE_PROXY = "/api/openverse";
 const WMC_SEARCH =
   "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrwhat=text&prop=imageinfo&iiprop=url|size|mime|extmetadata&origin=*&format=json&gsrlimit=50&iiurlwidth=1200&gsrsearch=";
 
-// Utility – simple tokenization
-function tokenize(str: string) {
-  return (str || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]+/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
-}
+// Pixabay API key from env
+const PIXABAY_KEY = (import.meta as any).env.VITE_PIXABAY_KEY as
+  | string
+  | undefined;
 
 // Orientation tag
 function orientation(width?: number | null, height?: number | null) {
@@ -27,29 +21,35 @@ function orientation(width?: number | null, height?: number | null) {
 }
 
 /* ===========================
-    FETCH: OPENVERSE via /api/openverse
+    FETCH: PIXABAY
 =========================== */
-async function fetchOpenverse(query: string) {
-  // call our own API route: /api/openverse?q=...
-  const url = `${OPENVERSE_PROXY}?q=${encodeURIComponent(query)}&page_size=40`;
+async function fetchPixabay(query: string) {
+  if (!PIXABAY_KEY) {
+    console.warn("VITE_PIXABAY_KEY is missing; skipping Pixabay");
+    return [];
+  }
+
+  const url = `https://pixabay.com/api/?key=${PIXABAY_KEY}&q=${encodeURIComponent(
+    query
+  )}&image_type=photo&orientation=horizontal&per_page=40&safesearch=true`;
 
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Openverse proxy error ${res.status}`);
+  if (!res.ok) throw new Error(`Pixabay error ${res.status}`);
 
   const json = await res.json();
   const now = new Date().toISOString();
 
-  return (json.results || [])
-    .map((r: any) => ({
-      id: r.id || crypto.randomUUID(),
-      source: "openverse",
-      title: r.title || r.alt || r.source || "Image",
-      image_url: r.url || r.thumbnail || null,
-      thumbnail_url: r.thumbnail || r.url || null,
-      page_url: r.foreign_landing_url || r.url || null,
-      width: r.width || null,
-      height: r.height || null,
-      license: r.license || "CC",
+  return (json.hits || [])
+    .map((p: any) => ({
+      id: `px_${p.id}`,
+      source: "pixabay",
+      title: p.tags || "Image",
+      image_url: p.largeImageURL || p.webformatURL || null,
+      thumbnail_url: p.webformatURL || p.previewURL || null,
+      page_url: p.pageURL || null,
+      width: p.imageWidth || null,
+      height: p.imageHeight || null,
+      license: "Pixabay License",
       fetched_at: now,
     }))
     .filter((x: any) => x.image_url);
@@ -178,9 +178,9 @@ export default function App() {
 
     (async () => {
       try {
-        const [ov, wm] = await Promise.all([
-          fetchOpenverse(query).catch((err) => {
-            console.error("Openverse proxy error:", err);
+        const [px, wm] = await Promise.all([
+          fetchPixabay(query).catch((err) => {
+            console.error("Pixabay error:", err);
             return [];
           }),
           fetchWikimedia(query).catch((err) => {
@@ -189,8 +189,8 @@ export default function App() {
           }),
         ]);
 
-        // Merge → Openverse ALWAYS first
-        const merged = [...ov, ...wm].slice(0, limit);
+        // Pixabay first (aesthetic), then Wikimedia
+        const merged = [...px, ...wm].slice(0, limit);
 
         if (!cancelled) setResults(merged);
       } catch (e: any) {
@@ -248,7 +248,7 @@ export default function App() {
             <select
               className="w-full rounded-2xl border px-3 py-2 bg-white/70 dark:bg-slate-800/70 shadow"
               value={limit}
-              onChange={(e) => setLimit(parseInt(e.target.value))}
+              onChange={(e) => setLimit(parseInt(e.target.value, 10))}
             >
               <option value={12}>Top 12</option>
               <option value={24}>Top 24</option>
@@ -279,7 +279,7 @@ export default function App() {
         )}
 
         <footer className="py-8 text-center text-xs text-slate-500 dark:text-slate-400">
-          © {new Date().getFullYear()} Imagify · Sources: Openverse · Wikimedia
+          © {new Date().getFullYear()} Imagify · Sources: Pixabay · Wikimedia
           Commons
         </footer>
       </main>
