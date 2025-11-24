@@ -57,37 +57,33 @@ function licenseSafety(lic?: string) {
   return 0.6; // Pexels license etc.
 }
 
-function scoreItem(
-  item: any,
-  cityTerms: string[],
-  keywordTerms: string[],
-  exactQuery: string
-) {
+function scoreItem(item: any, cityTerms: string[], exactCity: string) {
   const title = item.title || "";
   const text = `${title} ${item.source}`;
-  const width = item.width || 0,
-    height = item.height || 0;
+  const width = item.width || 0;
+  const height = item.height || 0;
   const mp = width && height ? (width * height) / 1_000_000 : 0;
   const resScore = Math.max(0, Math.min(1, mp / 4));
   const licScore = licenseSafety(
     (item.license && item.license.type) || item.license
   );
   const cityScore = textMatchScore(text, cityTerms);
-  const kwScore = textMatchScore(text, keywordTerms);
-  const exact = exactQuery && title.toLowerCase().includes(exactQuery) ? 1 : 0;
+  const exact =
+    exactCity && title.toLowerCase().includes(exactCity.toLowerCase()) ? 1 : 0;
   const srcPrior =
     item.source === "wikimedia"
       ? 0.08
       : item.source === "openverse"
       ? 0.06
       : 0.04;
+
   const final =
-    0.35 * kwScore +
-    0.22 * cityScore +
-    0.18 * resScore +
-    0.17 * licScore +
-    0.06 * srcPrior +
-    0.02 * exact;
+    0.4 * cityScore +
+    0.2 * resScore +
+    0.2 * licScore +
+    0.14 * srcPrior +
+    0.06 * exact;
+
   return { ...item, score: { final } };
 }
 
@@ -293,7 +289,6 @@ function ImageCard({ item }: { item: any }) {
 
 export default function App() {
   const [city, setCity] = useState("");
-  const [keywords, setKeywords] = useState("");
   const [limit, setLimit] = useState(24);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
@@ -310,14 +305,10 @@ export default function App() {
     else el.classList.remove("dark");
   }, [dark]);
 
-  const query = useMemo(
-    () => [city.trim(), keywords.trim()].filter(Boolean).join(" "),
-    [city, keywords]
-  );
+  const query = useMemo(() => city.trim(), [city]);
   const debouncedQuery = useDebounce(query, 500);
   const cityTerms = useMemo(() => tokenize(city), [city]);
-  const keywordTerms = useMemo(() => tokenize(keywords), [keywords]);
-  const exactQuery = useMemo(() => query.toLowerCase(), [query]);
+  const exactCity = useMemo(() => city.toLowerCase(), [city]);
 
   useEffect(() => {
     if (!debouncedQuery) {
@@ -328,12 +319,14 @@ export default function App() {
     let cancelled = false;
     setLoading(true);
     setError(null);
+
     (async () => {
       try {
         const tasks: Promise<any[]>[] = [];
         if (useOV) tasks.push(fetchOpenverse(debouncedQuery));
         if (useWM) tasks.push(fetchWikimedia(debouncedQuery));
         if (usePX) tasks.push(fetchPexels(debouncedQuery));
+
         const settled = await Promise.allSettled(tasks);
         const all = settled.flatMap((s) =>
           s.status === "fulfilled" ? s.value : []
@@ -350,7 +343,7 @@ export default function App() {
           }
         }
         const scored = deduped.map((it) =>
-          scoreItem(it, cityTerms, keywordTerms, exactQuery)
+          scoreItem(it, cityTerms, exactCity)
         );
         scored.sort((a, b) => (b.score?.final || 0) - (a.score?.final || 0));
         const topK = scored.slice(0, limit);
@@ -362,19 +355,11 @@ export default function App() {
         if (!cancelled) setLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [
-    debouncedQuery,
-    limit,
-    cityTerms,
-    keywordTerms,
-    exactQuery,
-    useOV,
-    useWM,
-    usePX,
-  ]);
+  }, [debouncedQuery, limit, cityTerms, exactCity, useOV, useWM, usePX]);
 
   return (
     <div className="min-h-screen">
@@ -382,7 +367,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
           <a href="/" className="flex items-center gap-2 group">
             <img src="/favicon.svg" className="w-6 h-6" />
-            <div className="text-xl font-semibold tracking-tight">Imagify</div>
+            <div className="text-xl font-semibold tracking-tight">{BRAND}</div>
           </a>
           <div className="ml-auto flex items-center gap-4">
             <Toggle checked={dark} onChange={setDark} label="Dark" />
@@ -391,8 +376,8 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        <section className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-          <div className="md:col-span-4">
+        <section className="grid grid-cols-1 md:grid-cols-9 gap-4 items-end">
+          <div className="md:col-span-6">
             <label className="block text-sm font-medium mb-1">City</label>
             <input
               className="w-full rounded-2xl border px-3 py-2 bg-white/70 dark:bg-slate-800/70 border-slate-300/70 dark:border-slate-600/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
@@ -400,7 +385,7 @@ export default function App() {
               value={city}
               onChange={(e) => setCity(e.target.value)}
             />
-         
+          </div>
           <div className="md:col-span-3">
             <label className="block text-sm font-medium mb-1">
               Top results
@@ -438,7 +423,7 @@ export default function App() {
           </div>
         ) : results.length === 0 ? (
           <div className="py-16 text-center text-slate-400">
-            No results yet. Try a city + keywords.
+            No results yet. Try entering a city name.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
