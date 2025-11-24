@@ -400,16 +400,7 @@ export default function App() {
               value={city}
               onChange={(e) => setCity(e.target.value)}
             />
-          </div>
-          <div className="md:col-span-5">
-            <label className="block text-sm font-medium mb-1">Keywords</label>
-            <input
-              className="w-full rounded-2xl border px-3 py-2 bg-white/70 dark:bg-slate-800/70 border-slate-300/70 dark:border-slate-600/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
-              placeholder="e.g., restaurant interior night, street market"
-              value={keywords}
-              onChange={(e) => setKeywords(e.target.value)}
-            />
-          </div>
+         
           <div className="md:col-span-3">
             <label className="block text-sm font-medium mb-1">
               Top results
