@@ -28,7 +28,7 @@ async function fetchPixabayCategory(query: string, category: string, perPage = 2
     `&orientation=horizontal` +
     `&per_page=${perPage}` +
     `&safesearch=true` +
-    `&order=popular`;
+    // `&order=popular`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Pixabay error ${res.status}`);
