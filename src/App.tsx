@@ -19,7 +19,7 @@ async function fetchPixabay(query: string) {
 
   const url = `https://pixabay.com/api/?key=${PIXABAY_KEY}&q=${encodeURIComponent(
     query
-  )}&image_type=photo&category=places&orientation=horizontal&per_page=40&safesearch=true`;
+  )}&image_type=photo&category=places&orientation=horizontal&per_page=40&safesearch=true&order=popular`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Pixabay error ${res.status}`);
@@ -192,14 +192,6 @@ export default function App() {
       <header className="sticky top-0 z-10 backdrop-blur bg-white/70 dark:bg-slate-900/70 border-b border-slate-200/60 dark:border-slate-700/60">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="text-xl font-semibold">{BRAND}</div>
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <span>Dark</span>
-            <input
-              type="checkbox"
-              checked={dark}
-              onChange={(e) => setDark(e.target.checked)}
-            />
-          </label>
         </div>
       </header>
 
