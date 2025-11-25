@@ -182,9 +182,9 @@ export default function App() {
         const merged = Array.from(mergedMap.values());
 
         // sort by views DESC and take top 10
-        const topSorted = merged
-          .sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
-          .slice(0, SHOW_TOP);
+        const topSorted = merged;
+          // .sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
+          // .slice(0, SHOW_TOP);
 
         if (!cancelled) setResults(topSorted);
       } catch (e: any) {
