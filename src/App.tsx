@@ -1,27 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 // Brand
-const BRAND = "Imagify";
+const BRAND = "Pixellant Solutions";
 
 // API endpoints
 const WMC_SEARCH =
-  "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrwhat=text&prop=imageinfo&iiprop=url|size|mime|extmetadata&origin=*&format=json&gsrlimit=50&iiurlwidth=1200&gsrsearch=";
+  "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrwhat=text&prop=imageinfo&iiprop=url|size|mime|extmetadata&origin=*&format=json&gsrlimit=50&iiurlwidth=1600&gsrsearch=";
 
 // Pixabay API key from env
 const PIXABAY_KEY = (import.meta as any).env.VITE_PIXABAY_KEY as
   | string
   | undefined;
 
-// Orientation tag
-function orientation(width?: number | null, height?: number | null) {
-  if (!width || !height) return "unknown";
-  if (width > height) return "landscape";
-  if (height > width) return "portrait";
-  return "square";
-}
-
 /* ===========================
-    FETCH: PIXABAY
+    FETCH: PIXABAY (places + photos only)
 =========================== */
 async function fetchPixabay(query: string) {
   if (!PIXABAY_KEY) {
@@ -31,7 +23,7 @@ async function fetchPixabay(query: string) {
 
   const url = `https://pixabay.com/api/?key=${PIXABAY_KEY}&q=${encodeURIComponent(
     query
-  )}&image_type=photo&orientation=horizontal&per_page=40&safesearch=true`;
+  )}&image_type=photo&category=places&orientation=horizontal&per_page=40&safesearch=true`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Pixabay error ${res.status}`);
@@ -51,12 +43,14 @@ async function fetchPixabay(query: string) {
       height: p.imageHeight || null,
       license: "Pixabay License",
       fetched_at: now,
+      mime: "image/jpeg",
+      categories: p.tags || "",
     }))
     .filter((x: any) => x.image_url);
 }
 
 /* ===========================
-    FETCH: WIKIMEDIA
+    FETCH: WIKIMEDIA (raster photos only)
 =========================== */
 async function fetchWikimedia(query: string) {
   const url = `${WMC_SEARCH}${encodeURIComponent(query)}`;
@@ -68,9 +62,13 @@ async function fetchWikimedia(query: string) {
   const pages = json?.query?.pages || {};
   const now = new Date().toISOString();
 
+  const allowedMimes = new Set(["image/jpeg", "image/png", "image/webp"]);
+
   return Object.values(pages)
     .map((p: any) => {
       const ii = (p.imageinfo && p.imageinfo[0]) || {};
+      const cats =
+        ii.extmetadata?.Categories?.value?.toLowerCase?.() || "";
 
       return {
         id: `wm_${p.pageid}`,
@@ -81,6 +79,8 @@ async function fetchWikimedia(query: string) {
         page_url: `https://commons.wikimedia.org/?curid=${p.pageid}`,
         width: ii.width || null,
         height: ii.height || null,
+        mime: ii.mime || null,
+        categories: cats,
         license:
           ii.extmetadata?.LicenseShortName?.value ||
           ii.extmetadata?.License?.value ||
@@ -88,7 +88,25 @@ async function fetchWikimedia(query: string) {
         fetched_at: now,
       };
     })
-    .filter((x: any) => x.image_url);
+    .filter((x: any) => {
+      if (!x.image_url) return false;
+      if (!x.mime || !allowedMimes.has(x.mime)) return false;
+
+      // crude exclusions to avoid obvious non-photo media
+      const c = x.categories || "";
+      if (
+        c.includes("illustration") ||
+        c.includes("drawing") ||
+        c.includes("logo") ||
+        c.includes("icon") ||
+        c.includes("map") ||
+        c.includes("vector") ||
+        c.includes("svg")
+      )
+        return false;
+
+      return true;
+    });
 }
 
 // Debounce helper
@@ -102,53 +120,70 @@ function useDebounce<T>(value: T, delay = 500) {
 }
 
 /* ===========================
-    BADGE
+    LIGHTBOX / ZOOM PREVIEW
 =========================== */
-function Badge({ children }: { children: React.ReactNode }) {
+function Lightbox({
+  src,
+  title,
+  onClose,
+}: {
+  src: string;
+  title?: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs text-slate-600 dark:text-slate-300 border-slate-300/70 dark:border-slate-600/60">
-      {children}
-    </span>
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="max-w-6xl w-full max-h-[90vh] flex items-center justify-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <img
+          src={src}
+          alt={title || "Preview"}
+          className="w-auto h-auto max-w-full max-h-[90vh] rounded-2xl shadow-2xl"
+        />
+      </div>
+    </div>
   );
 }
 
 /* ===========================
-    IMAGE CARD
+    IMAGE CARD (image-only)
 =========================== */
-function ImageCard({ item }: { item: any }) {
-  const o = orientation(item.width, item.height);
-
+function ImageCard({
+  item,
+  onOpen,
+}: {
+  item: any;
+  onOpen: (it: any) => void;
+}) {
   return (
-    <a
-      href={item.page_url || item.image_url}
-      target="_blank"
-      rel="noreferrer"
-      className="group block overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/60 shadow hover:shadow-md transition"
+    <button
+      type="button"
+      onClick={() => onOpen(item)}
+      className="group block overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/60 dark:bg-slate-800/60 shadow hover:shadow-md transition focus:outline-none"
+      aria-label="Open image preview"
     >
       <div className="aspect-video overflow-hidden bg-slate-100 dark:bg-slate-900">
         <img
           src={item.thumbnail_url}
           alt={item.title}
-          className="w-full h-full object-cover group-hover:scale-[1.03] transition"
+          className="w-full h-full object-cover group-hover:scale-[1.06] transition"
+          loading="lazy"
         />
       </div>
-      <div className="p-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-medium line-clamp-1">{item.title}</div>
-          <Badge>{item.source}</Badge>
-        </div>
-
-        <div className="flex gap-2 flex-wrap text-xs">
-          {o !== "unknown" && <Badge>{o}</Badge>}
-          {item.width && item.height && (
-            <Badge>
-              {item.width}×{item.height}
-            </Badge>
-          )}
-          {item.license && <Badge>{item.license}</Badge>}
-        </div>
-      </div>
-    </a>
+    </button>
   );
 }
 
@@ -157,12 +192,14 @@ function ImageCard({ item }: { item: any }) {
 =========================== */
 export default function App() {
   const [city, setCity] = useState("");
-  const [limit, setLimit] = useState(24);
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dark, setDark] = useState(false);
+  const [active, setActive] = useState<any | null>(null);
 
+  // hard limit to top 8
+  const limit = 8;
   const query = useDebounce(city.trim(), 500);
 
   useEffect(() => {
@@ -204,13 +241,24 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [query, limit]);
+  }, [query]);
 
   /* Dark mode toggle */
   useEffect(() => {
     const el = document.documentElement;
     dark ? el.classList.add("dark") : el.classList.remove("dark");
   }, [dark]);
+
+  const grid = useMemo(
+    () => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {results.map((item) => (
+          <ImageCard key={item.id} item={item} onOpen={setActive} />
+        ))}
+      </div>
+    ),
+    [results]
+  );
 
   return (
     <div className="min-h-screen">
@@ -231,30 +279,15 @@ export default function App() {
 
       {/* MAIN */}
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        {/* SEARCH BAR */}
-        <section className="grid grid-cols-1 md:grid-cols-9 gap-4 items-end">
-          <div className="md:col-span-6">
-            <label className="block text-sm mb-1">City</label>
-            <input
-              className="w-full rounded-2xl border px-3 py-2 bg-white/70 dark:bg-slate-800/70 shadow focus:ring-2"
-              placeholder="e.g., Paris, Mumbai, Tokyo"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-            />
-          </div>
-
-          <div className="md:col-span-3">
-            <label className="block text-sm mb-1">Top results</label>
-            <select
-              className="w-full rounded-2xl border px-3 py-2 bg-white/70 dark:bg-slate-800/70 shadow"
-              value={limit}
-              onChange={(e) => setLimit(parseInt(e.target.value, 10))}
-            >
-              <option value={12}>Top 12</option>
-              <option value={24}>Top 24</option>
-              <option value={48}>Top 48</option>
-            </select>
-          </div>
+        {/* CITY INPUT ONLY (top search bar removed) */}
+        <section>
+          <label className="block text-sm mb-1">City</label>
+          <input
+            className="w-full rounded-2xl border px-3 py-2 bg-white/70 dark:bg-slate-800/70 shadow focus:ring-2"
+            placeholder="e.g., Paris, Mumbai, Tokyo"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+          />
         </section>
 
         {/* RESULTS */}
@@ -271,18 +304,23 @@ export default function App() {
             No results yet. Try entering a city name.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {results.map((item) => (
-              <ImageCard key={item.id} item={item} />
-            ))}
-          </div>
+          grid
         )}
 
         <footer className="py-8 text-center text-xs text-slate-500 dark:text-slate-400">
-          © {new Date().getFullYear()} Imagify · Sources: Pixabay · Wikimedia
-          Commons
+          © {new Date().getFullYear()} Pixellant Solutions · Sources: Pixabay ·
+          Wikimedia Commons
         </footer>
       </main>
+
+      {/* LIGHTBOX */}
+      {active?.image_url && (
+        <Lightbox
+          src={active.image_url}
+          title={active.title}
+          onClose={() => setActive(null)}
+        />
+      )}
     </div>
   );
 }
