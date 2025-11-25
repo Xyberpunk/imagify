@@ -162,7 +162,7 @@ export default function App() {
 
     (async () => {
       try {
-        const categories = ["places", "buildings", "travel"];
+        const categories = ["places"];
 
         const batches = await Promise.all(
           categories.map((cat) =>
