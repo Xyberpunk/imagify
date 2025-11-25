@@ -3,10 +3,6 @@ import React, { useEffect, useMemo, useState } from "react";
 // Brand
 const BRAND = "Pixellant Solutions";
 
-// API endpoints
-const WMC_SEARCH =
-  "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrwhat=text&prop=imageinfo&iiprop=url|size|mime|extmetadata&origin=*&format=json&gsrlimit=50&iiurlwidth=1600&gsrsearch=";
-
 // Pixabay API key from env
 const PIXABAY_KEY = (import.meta as any).env.VITE_PIXABAY_KEY as
   | string
@@ -38,75 +34,12 @@ async function fetchPixabay(query: string) {
       title: p.tags || "Image",
       image_url: p.largeImageURL || p.webformatURL || null,
       thumbnail_url: p.webformatURL || p.previewURL || null,
-      page_url: p.pageURL || null,
       width: p.imageWidth || null,
       height: p.imageHeight || null,
       license: "Pixabay License",
       fetched_at: now,
-      mime: "image/jpeg",
-      categories: p.tags || "",
     }))
     .filter((x: any) => x.image_url);
-}
-
-/* ===========================
-    FETCH: WIKIMEDIA (raster photos only)
-=========================== */
-async function fetchWikimedia(query: string) {
-  const url = `${WMC_SEARCH}${encodeURIComponent(query)}`;
-
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Wikimedia error ${res.status}`);
-
-  const json = await res.json();
-  const pages = json?.query?.pages || {};
-  const now = new Date().toISOString();
-
-  const allowedMimes = new Set(["image/jpeg", "image/png", "image/webp"]);
-
-  return Object.values(pages)
-    .map((p: any) => {
-      const ii = (p.imageinfo && p.imageinfo[0]) || {};
-      const cats =
-        ii.extmetadata?.Categories?.value?.toLowerCase?.() || "";
-
-      return {
-        id: `wm_${p.pageid}`,
-        source: "wikimedia",
-        title: p.title || "Image",
-        image_url: ii.url || null,
-        thumbnail_url: ii.thumburl || ii.url || null,
-        page_url: `https://commons.wikimedia.org/?curid=${p.pageid}`,
-        width: ii.width || null,
-        height: ii.height || null,
-        mime: ii.mime || null,
-        categories: cats,
-        license:
-          ii.extmetadata?.LicenseShortName?.value ||
-          ii.extmetadata?.License?.value ||
-          "CC",
-        fetched_at: now,
-      };
-    })
-    .filter((x: any) => {
-      if (!x.image_url) return false;
-      if (!x.mime || !allowedMimes.has(x.mime)) return false;
-
-      // crude exclusions to avoid obvious non-photo media
-      const c = x.categories || "";
-      if (
-        c.includes("illustration") ||
-        c.includes("drawing") ||
-        c.includes("logo") ||
-        c.includes("icon") ||
-        c.includes("map") ||
-        c.includes("vector") ||
-        c.includes("svg")
-      )
-        return false;
-
-      return true;
-    });
 }
 
 // Debounce helper
@@ -215,19 +148,12 @@ export default function App() {
 
     (async () => {
       try {
-        const [px, wm] = await Promise.all([
-          fetchPixabay(query).catch((err) => {
-            console.error("Pixabay error:", err);
-            return [];
-          }),
-          fetchWikimedia(query).catch((err) => {
-            console.error("Wikimedia error:", err);
-            return [];
-          }),
-        ]);
+        const px = await fetchPixabay(query).catch((err) => {
+          console.error("Pixabay error:", err);
+          return [];
+        });
 
-        // Pixabay first (aesthetic), then Wikimedia
-        const merged = [...px, ...wm].slice(0, limit);
+        const merged = px.slice(0, limit);
 
         if (!cancelled) setResults(merged);
       } catch (e: any) {
@@ -279,7 +205,7 @@ export default function App() {
 
       {/* MAIN */}
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        {/* CITY INPUT ONLY (top search bar removed) */}
+        {/* CITY INPUT */}
         <section>
           <label className="block text-sm mb-1">City</label>
           <input
@@ -308,8 +234,7 @@ export default function App() {
         )}
 
         <footer className="py-8 text-center text-xs text-slate-500 dark:text-slate-400">
-          © {new Date().getFullYear()} Pixellant Solutions · Sources: Pixabay ·
-          Wikimedia Commons
+          © {new Date().getFullYear()} Pixellant Solutions
         </footer>
       </main>
 
