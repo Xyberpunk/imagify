@@ -19,16 +19,18 @@ async function fetchPixabayCategory(query: string, category: string, perPage = 2
     return [];
   }
 
-  const url =
-    `${PIXABAY_BASE}?key=${PIXABAY_KEY}` +
-    `&q=${encodeURIComponent(query)}` +
-    `&image_type=photo` +
-    // `&category=${encodeURIComponent(category)}` +
+  // const url =
+  //   `${PIXABAY_BASE}?key=${PIXABAY_KEY}` +
+  //   `&q=${encodeURIComponent(query)}` +
+  //   `&image_type=photo` +
+  //   // `&category=${encodeURIComponent(category)}` +
     
-    `&orientation=horizontal` +
-    `&per_page=${perPage}` +
-    `&safesearch=true` +
-    `&order=popular`;
+  //   `&orientation=horizontal` +
+  //   `&per_page=${perPage}` +
+  //   `&safesearch=true` +
+  //   `&order=popular`;
+
+  const url = `&q=${query}&image_type=photo&category=places&orientation=horizontal&per_page=24&safesearch=true&order=popular`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Pixabay error ${res.status}`);
