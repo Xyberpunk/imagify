@@ -8,18 +8,26 @@ const PIXABAY_KEY = (import.meta as any).env.VITE_PIXABAY_KEY as
   | string
   | undefined;
 
+const PIXABAY_BASE = "https://pixabay.com/api/";
+
 /* ===========================
-    FETCH: PIXABAY (places + photos only)
+    FETCH: PIXABAY (photos only, by category)
 =========================== */
-async function fetchPixabay(query: string) {
+async function fetchPixabayCategory(query: string, category: string, perPage = 24) {
   if (!PIXABAY_KEY) {
     console.warn("VITE_PIXABAY_KEY is missing; skipping Pixabay");
     return [];
   }
 
-  const url = `https://pixabay.com/api/?key=${PIXABAY_KEY}&q=${encodeURIComponent(
-    query
-  )}&image_type=photo&category=places&orientation=horizontal&per_page=40&safesearch=true&order=popular`;
+  const url =
+    `${PIXABAY_BASE}?key=${PIXABAY_KEY}` +
+    `&q=${encodeURIComponent(query)}` +
+    `&image_type=photo` +
+    `&category=${encodeURIComponent(category)}` +
+    `&orientation=horizontal` +
+    `&per_page=${perPage}` +
+    `&safesearch=true` +
+    `&order=popular`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Pixabay error ${res.status}`);
@@ -36,6 +44,8 @@ async function fetchPixabay(query: string) {
       thumbnail_url: p.webformatURL || p.previewURL || null,
       width: p.imageWidth || null,
       height: p.imageHeight || null,
+      views: p.views || 0,            // <-- needed for sorting
+      category,                       // <-- keep category for debugging if needed
       license: "Pixabay License",
       fetched_at: now,
     }))
@@ -128,11 +138,12 @@ export default function App() {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dark, setDark] = useState(false);
   const [active, setActive] = useState<any | null>(null);
 
-  // hard limit to top 8
-  const limit = 8;
+  // Fetch top 24 per category => merge => sort by views => top 10 shown
+  const PER_CATEGORY = 24;
+  const SHOW_TOP = 10;
+
   const query = useDebounce(city.trim(), 500);
 
   useEffect(() => {
@@ -148,14 +159,33 @@ export default function App() {
 
     (async () => {
       try {
-        const px = await fetchPixabay(query).catch((err) => {
-          console.error("Pixabay error:", err);
-          return [];
-        });
+        const categories = ["places", "buildings", "travel"];
 
-        const merged = px.slice(0, limit);
+        const batches = await Promise.all(
+          categories.map((cat) =>
+            fetchPixabayCategory(query, cat, PER_CATEGORY).catch((err) => {
+              console.error(`Pixabay error (${cat}):`, err);
+              return [];
+            })
+          )
+        );
 
-        if (!cancelled) setResults(merged);
+        // merge + dedupe by id
+        const mergedMap = new Map<string, any>();
+        for (const batch of batches) {
+          for (const item of batch) {
+            if (!mergedMap.has(item.id)) mergedMap.set(item.id, item);
+          }
+        }
+
+        const merged = Array.from(mergedMap.values());
+
+        // sort by views DESC and take top 10
+        const topSorted = merged
+          .sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
+          .slice(0, SHOW_TOP);
+
+        if (!cancelled) setResults(topSorted);
       } catch (e: any) {
         console.error(e);
         if (!cancelled) setError(e.message || "Error");
@@ -168,12 +198,6 @@ export default function App() {
       cancelled = true;
     };
   }, [query]);
-
-  /* Dark mode toggle */
-  useEffect(() => {
-    const el = document.documentElement;
-    dark ? el.classList.add("dark") : el.classList.remove("dark");
-  }, [dark]);
 
   const grid = useMemo(
     () => (
