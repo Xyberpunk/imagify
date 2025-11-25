@@ -23,7 +23,8 @@ async function fetchPixabayCategory(query: string, category: string, perPage = 2
     `${PIXABAY_BASE}?key=${PIXABAY_KEY}` +
     `&q=${encodeURIComponent(query)}` +
     `&image_type=photo` +
-    `&category=${encodeURIComponent(category)}` +
+    // `&category=${encodeURIComponent(category)}` +
+    
     `&orientation=horizontal` +
     `&per_page=${perPage}` +
     `&safesearch=true` +
