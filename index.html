@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pixellent Solutions</title>
- 
+
     <style>
       :root {
         --bg: #f8fafc;
@@ -12,9 +12,12 @@
         --border: rgba(148, 163, 184, 0.5);
         --text: #0f172a;
         --muted: #64748b;
+        --accent: #0ea5e9;
       }
- 
-      * { box-sizing: border-box; }
+
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
         font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
@@ -22,13 +25,13 @@
         color: var(--text);
         min-height: 100vh;
       }
- 
+
       header {
         position: sticky;
         top: 0;
         z-index: 10;
         backdrop-filter: blur(8px);
-        background: rgba(255,255,255,0.7);
+        background: rgba(255, 255, 255, 0.7);
         border-bottom: 1px solid var(--border);
       }
       .header-inner {
@@ -43,7 +46,7 @@
         font-size: 20px;
         font-weight: 700;
       }
- 
+
       main {
         max-width: 1100px;
         margin: 0 auto;
@@ -51,20 +54,30 @@
         display: grid;
         gap: 18px;
       }
- 
+
       label {
         font-size: 13px;
         color: var(--muted);
         display: block;
         margin-bottom: 6px;
       }
- 
+
+      .search-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .search-row input[type="text"] {
+        flex: 1;
+      }
+
       input[type="text"] {
         width: 100%;
         padding: 10px 12px;
         border: 1px solid var(--border);
         border-radius: 14px;
-        background: rgba(255,255,255,0.8);
+        background: rgba(255, 255, 255, 0.8);
         outline: none;
         font-size: 15px;
       }
@@ -72,14 +85,38 @@
         box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
         border-color: rgba(56, 189, 248, 0.9);
       }
- 
+
+      .btn-search {
+        padding: 10px 16px;
+        border-radius: 14px;
+        border: none;
+        background: var(--accent);
+        color: #f8fafc;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        box-shadow: 0 2px 6px rgba(14, 165, 233, 0.35);
+        transition: transform 0.15s ease, box-shadow 0.15s ease,
+          background 0.15s ease;
+      }
+      .btn-search:hover {
+        background: #0284c7;
+        box-shadow: 0 4px 10px rgba(14, 165, 233, 0.5);
+        transform: translateY(-1px);
+      }
+      .btn-search:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 6px rgba(14, 165, 233, 0.35);
+      }
+
       .status {
         text-align: center;
         padding: 50px 0;
         color: var(--muted);
         font-size: 14px;
       }
- 
+
       .error {
         padding: 10px 12px;
         background: #fee2e2;
@@ -87,22 +124,28 @@
         border-radius: 10px;
         font-size: 14px;
       }
- 
+
       .grid {
         display: grid;
         gap: 12px;
         grid-template-columns: repeat(1, minmax(0, 1fr));
       }
       @media (min-width: 640px) {
-        .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
       }
       @media (min-width: 768px) {
-        .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
       }
       @media (min-width: 1024px) {
-        .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .grid {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
       }
- 
+
       .card {
         border: 1px solid var(--border);
         background: var(--bg-card);
@@ -117,7 +160,7 @@
         box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
         transform: translateY(-1px);
       }
- 
+
       .thumb-wrap {
         aspect-ratio: 16 / 9;
         background: #e2e8f0;
@@ -133,109 +176,109 @@
       .card:hover img {
         transform: scale(1.06);
       }
- 
+
       footer {
         text-align: center;
         font-size: 12px;
         color: var(--muted);
         padding-top: 10px;
       }
- 
+
       /* Lightbox */
       .lightbox {
         position: fixed;
         inset: 0;
         z-index: 50;
-        background: rgba(0,0,0,0.8);
+        background: rgba(0, 0, 0, 0.8);
         backdrop-filter: blur(2px);
         display: none;
         align-items: center;
         justify-content: center;
         padding: 16px;
       }
-      .lightbox.open { display: flex; }
+      .lightbox.open {
+        display: flex;
+      }
       .lightbox img {
         max-width: 96vw;
         max-height: 90vh;
         border-radius: 18px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
       }
     </style>
   </head>
- 
+
   <body>
     <header>
       <div class="header-inner">
         <div class="brand">Pixellent Solutions</div>
       </div>
     </header>
- 
+
     <main>
-      <!-- City Input -->
+      <!-- City Input + Button -->
       <section>
         <label for="cityInput">City</label>
-        <input
-          id="cityInput"
-          type="text"
-          placeholder="e.g., Paris, Mumbai, Tokyo"
-          autocomplete="off"
-        />
+        <div class="search-row">
+          <input
+            id="cityInput"
+            type="text"
+            placeholder="e.g., Paris, Mumbai, New York City"
+            autocomplete="off"
+          />
+          <button id="searchBtn" class="btn-search" type="button">
+            Search
+          </button>
+        </div>
       </section>
- 
+
       <!-- Error -->
-      <div id="errorBox" class="error" style="display:none;"></div>
- 
+      <div id="errorBox" class="error" style="display: none"></div>
+
       <!-- Status / Results -->
       <div id="status" class="status">
-        No results yet. Try entering a city name.
+        No results yet. Try entering a city name and clicking Search.
       </div>
- 
-      <div id="grid" class="grid" style="display:none;"></div>
- 
+
+      <div id="grid" class="grid" style="display: none"></div>
+
       <footer>
         © <span id="year"></span> Pixellent Solutions
       </footer>
     </main>
- 
+
     <!-- Lightbox -->
     <div id="lightbox" class="lightbox" aria-hidden="true">
       <img id="lightboxImg" alt="Preview" />
     </div>
- 
+
     <script>
       // ====== CONFIG ======
       const BRAND = "Pixellant Solutions";
-      const PIXABAY_KEY = "53388270-f3773317d7fc4311329c1af09"; // <-- put your key here
+      const PIXABAY_KEY = "53388270-f3773317d7fc4311329c1af09"; // <-- your key
       const PIXABAY_BASE = "https://pixabay.com/api/";
- 
+
       const PER_CATEGORY = 100;
       const SHOW_TOP = 12;
- 
+
       // ====== DOM ======
       const cityInput = document.getElementById("cityInput");
+      const searchBtn = document.getElementById("searchBtn");
       const statusEl = document.getElementById("status");
       const gridEl = document.getElementById("grid");
       const errorBox = document.getElementById("errorBox");
       const lightbox = document.getElementById("lightbox");
       const lightboxImg = document.getElementById("lightboxImg");
       document.getElementById("year").textContent = new Date().getFullYear();
- 
-      // ====== Debounce ======
-      function debounce(fn, delay = 500) {
-        let t;
-        return (...args) => {
-          clearTimeout(t);
-          t = setTimeout(() => fn(...args), delay);
-        };
-      }
- 
+
       // ====== Fetch Pixabay ======
       async function fetchPixabayPlaces(query) {
         if (!PIXABAY_KEY || PIXABAY_KEY === "YOUR_PIXABAY_KEY_HERE") {
           console.warn("Pixabay key missing");
           return [];
         }
- 
+
+        // encodeURIComponent handles spaces correctly ("New York City" → "New%20York%20City")
         const url =
           `${PIXABAY_BASE}?key=${PIXABAY_KEY}` +
           `&q=${encodeURIComponent(query)}` +
@@ -245,15 +288,15 @@
           `&per_page=${PER_CATEGORY}` +
           `&safesearch=true` +
           `&order=popular`;
- 
+
         const res = await fetch(url);
         if (!res.ok) throw new Error(`Pixabay error ${res.status}`);
- 
+
         const json = await res.json();
         const now = new Date().toISOString();
- 
+
         return (json.hits || [])
-          .map(p => ({
+          .map((p) => ({
             id: `px_${p.id}`,
             title: p.tags || "Image",
             image_url: p.largeImageURL || p.webformatURL || null,
@@ -262,51 +305,53 @@
             height: p.imageHeight || null,
             views: p.views || 0,
             likes: p.likes || 0,
-            popularity: p.views-p.likes || 0,
-            fetched_at: now
+            popularity: p.views - p.likes || 0,
+            fetched_at: now,
           }))
-          .filter(x => x.image_url);
+          .filter((x) => x.image_url);
       }
- 
+
       // ====== Render ======
       function showStatus(text) {
         statusEl.style.display = "block";
         statusEl.textContent = text;
         gridEl.style.display = "none";
       }
- 
+
       function showError(msg) {
         errorBox.style.display = "block";
         errorBox.textContent = msg;
       }
- 
+
       function clearError() {
         errorBox.style.display = "none";
         errorBox.textContent = "";
       }
- 
+
       function renderGrid(items) {
         gridEl.innerHTML = "";
-        items.forEach(item => {
+        items.forEach((item) => {
           const btn = document.createElement("button");
           btn.className = "card";
           btn.type = "button";
           btn.setAttribute("aria-label", "Open image preview");
- 
+
           btn.innerHTML = `
             <div class="thumb-wrap">
               <img src="${item.thumbnail_url}" alt="${item.title}" loading="lazy" />
             </div>
           `;
- 
-          btn.addEventListener("click", () => openLightbox(item.image_url, item.title));
+
+          btn.addEventListener("click", () =>
+            openLightbox(item.image_url, item.title)
+          );
           gridEl.appendChild(btn);
         });
- 
+
         statusEl.style.display = "none";
         gridEl.style.display = "grid";
       }
- 
+
       // ====== Lightbox ======
       function openLightbox(src, title) {
         lightboxImg.src = src;
@@ -314,19 +359,19 @@
         lightbox.classList.add("open");
         lightbox.setAttribute("aria-hidden", "false");
       }
- 
+
       function closeLightbox() {
         lightbox.classList.remove("open");
         lightbox.setAttribute("aria-hidden", "true");
         lightboxImg.src = "";
       }
- 
+
       lightbox.addEventListener("click", closeLightbox);
       window.addEventListener("keydown", (e) => {
         if (e.key === "Escape") closeLightbox();
       });
- 
-      // ====== Search Handler ======
+
+      // ====== Search Handler (no debounce, button + Enter) ======
       async function handleSearch(q) {
         const query = q.trim();
         if (!query) {
@@ -334,18 +379,18 @@
           showStatus("No results yet. Try entering a city name.");
           return;
         }
- 
+
         clearError();
         showStatus("Searching…");
- 
+
         try {
           const items = await fetchPixabayPlaces(query);
- 
-          // sort by views DESC, take top 10
+
+          // sort by views DESC, take top N
           const topSorted = items
             .sort((a, b) => (b.views || 0) - (a.views || 0))
             .slice(0, SHOW_TOP);
- 
+
           if (topSorted.length === 0) {
             showStatus("No results found. Try a different city.");
           } else {
@@ -357,11 +402,18 @@
           showStatus("Something went wrong.");
         }
       }
- 
-      const debouncedSearch = debounce(handleSearch, 500);
-      cityInput.addEventListener("input", (e) => debouncedSearch(e.target.value));
+
+      // Click on Search button
+      searchBtn.addEventListener("click", () =>
+        handleSearch(cityInput.value)
+      );
+
+      // Press Enter in input
+      cityInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          handleSearch(cityInput.value);
+        }
+      });
     </script>
   </body>
 </html>
- 
- 
