@@ -373,7 +373,7 @@
 
       // ====== Search Handler (no debounce, button + Enter) ======
       async function handleSearch(q) {
-        const query = q.trim();
+        const query = q.trim().split(/\s+/).join("+");
         if (!query) {
           clearError();
           showStatus("No results yet. Try entering a city name.");
